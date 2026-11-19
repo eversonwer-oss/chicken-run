@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHICKEN RUN: A Corrida da Galinha</title>
+  <!-- Fonte Pixel Art Retrô -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-page: #181a24;
+      --panel-bg: #222634;
+      --border-pixel: #3b4259;
+      --accent-yellow: #ffd43b;
+      --accent-red: #ff595e;
+      --accent-green: #52b788;
+      --text-light: #f8f9fa;
+      --text-muted: #adb5bd;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #252a3a 0%, #13151d 100%);
+      color: var(--text-light);
+      font-family: 'Press Start 2P', 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Container Principal do Jogo */
+    .game-shell {
+      width: 100%;
+      max-width: 960px;
+      background: var(--panel-bg);
+      border: 4px solid var(--border-pixel);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Barra Superior (HUD Externo Complementar) */
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 8px;
+      background: rgba(15, 17, 24, 0.55);
+      border-radius: 8px;
+      border: 2px solid #2e3447;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--accent-yellow);
+      text-shadow: 2px 2px 0 #000;
+    }
+
+    .hud-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pixel-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      color: #fff;
+      background: #363d52;
+      border: 2px solid #525c7a;
+      border-bottom-width: 4px;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, background 0.15s ease;
+    }
+
+    .pixel-btn:hover {
+      background: #444d66;
+    }
+
+    .pixel-btn:active {
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+
+    .pixel-btn.primary {
+      background: #e63946;
+      border-color: #ff758f;
+      border-bottom-color: #9e1925;
+      font-size: 12px;
+      padding: 12px 20px;
+      box-shadow: 0 4px 0 #590d14;
+    }
+
+    .pixel-btn.primary:hover {
+      background: #f24957;
+    }
+
+    /* Área do Canvas */
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 7;
+      min-height: 280px;
+      max-height: 430px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 4px solid #12141c;
+      background: #74c0fc;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.25);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      cursor: pointer;
+    }
+
+    /* Legenda de Controles Abaixo do Canvas */
+    .controls-footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 9px;
+      color: var(--text-muted);
+      padding: 4px 6px;
+    }
+
+    .key-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    kbd {
+      background: #2f3548;
+      border: 1px solid #566080;
+      border-bottom-width: 3px;
+      border-radius: 4px;
+      padding: 3px 6px;
+      color: #fff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+    }
+
+    /* Overlays de Interface (Tela Inicial, Pausa e Game Over) */
+    .overlay-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .overlay-layer.active {
+      pointer-events: auto;
+    }
+
+    .overlay-layer.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .start-card {
+      background: rgba(20, 24, 36, 0.72);
+      backdrop-filter: blur(2px);
+      border: 3px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 20px 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .game-title {
+      font-size: clamp(20px, 3.6vw, 34px);
+      color: #ffd43b;
+      text-shadow: 4px 4px 0 #d9480f, -2px -2px 0 #000;
+      margin: 0 0 10px 0;
+      letter-spacing: 2px;
+    }
+
+    .game-subtitle {
+      font-size: clamp(10px, 1.5vw, 13px);
+      color: #ffffff;
+      text-shadow: 2px 2px 0 #000;
+      margin: 0 0 20px 0;
+    }
+
+    .blink-text {
+      font-size: clamp(10px, 1.4vw, 12px);
+      color: #8ce99a;
+      text-shadow: 2px 2px 0 #000;
+      animation: blinkAnim 1.1s steps(2, start) infinite;
+    }
+
+    @keyframes blinkAnim {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0.25; }
+    }
+
+    .gameover-card {
+      background: rgba(18, 20, 30, 0.88);
+      border: 4px solid #ff595e;
+      border-radius: 14px;
+      padding: 22px 30px;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.75);
+      max-width: 440px;
+      width: 92%;
+    }
+
+    .gameover-title {
+      font-size: clamp(18px, 3vw, 26px);
+      color: #ff595e;
+      text-shadow: 3px 3px 0 #000;
+      margin: 0 0 14px 0;
+    }
+
+    .score-summary {
+      display: flex;
+      justify-content: space-around;
+      gap: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
+    .new-record-badge {
+      display: inline-block;
+      background: #ffd43b;
+      color: #181a24;
+      font-size: 9px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+      animation: pulseBadge 0.6s infinite alternate;
+    }
+
+    @keyframes pulseBadge {
+      from { transform: scale(0.96); }
+      to { transform: scale(1.05); }
+    }
+
+    /* Assinatura e Descrição no Canto da Página */
+    .creator-corner {
+      position: fixed;
+      right: 14px;
+      bottom: 12px;
+      background: rgba(22, 25, 36, 0.9);
+      border: 2px solid #3b4259;
+      border-radius: 10px;
+      padding: 9px 13px;
+      max-width: 310px;
+      z-index: 20;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .creator-corner .creator-name {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: var(--accent-yellow);
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .creator-corner .creator-desc {
+      font-size: 11px;
+      line-height: 1.35;
+      color: #ced4da;
+      margin: 0;
+    }
+
+    @media (max-width: 680px) {
+      .creator-corner {
+        position: static;
+        margin-top: 14px;
+        max-width: 100%;
+        width: 100%;
+      }
+      .controls-footer {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="game-shell">
+    <!-- Barra Superior -->
+    <header class="top-bar">
+      <div class="brand-badge">
+        <span>🐔 CHICKEN RUN</span>
+      </div>
+      <div class="hud-controls">
+        <button id="btnSound" class="pixel-btn" title="Ativar/Desativar Som">
+          <span id="soundIcon">🔊</span> <span id="soundText">SOM: ON</span>
+        </button>
+        <button id="btnPause" class="pixel-btn" title="Pausar Jogo (ESC ou P)">
+          <span>⏸️ PAUSA</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Palco do Jogo -->
+    <section class="canvas-wrapper" id="canvasWrapper">
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Tela Inicial -->
+      <div id="startOverlay" class="overlay-layer active">
+        <div class="start-card">
+          <h1 class="game-title">CHICKEN RUN</h1>
+          <p class="game-subtitle">A CORRIDA DA GALINHA</p>
+          <p class="blink-text">Pressione ESPAÇO ou Clique para começar</p>
+        </div>
+      </div>
+
+      <!-- Tela de Pausa -->
+      <div id="pauseOverlay" class="overlay-layer hidden">
+        <div class="start-card">
+          <h2 class="game-title" style="font-size: 22px; margin-bottom: 12px;">JOGO PAUSADO</h2>
+          <p class="game-subtitle" style="margin-bottom: 16px;">Pressione ESC, P ou Clique para continuar</p>
+          <button id="btnResume" class="pixel-btn primary">CONTINUAR</button>
+        </div>
+      </div>
+
+      <!-- Tela de Game Over -->
+      <div id="gameOverOverlay" class="overlay-layer hidden">
+        <div class="gameover-card">
+          <h2 class="gameover-title">GAME OVER</h2>
+          <div id="newRecordBadge" class="new-record-badge" style="display: none;">
+            ★ NOVO RECORDE PESSOAL! ★
+          </div>
+          <div class="score-summary">
+            <div>
+              <div style="color: #adb5bd; font-size: 9px;">PONTUAÇÃO</div>
+              <div id="finalScore" style="color: #fff; font-size: 14px;">00000</div>
+            </div>
+            <div>
+              <div style="color: #ffd43b; font-size: 9px;">RECORDE</div>
+              <div id="finalHighScore" style="color: #ffd43b; font-size: 14px;">00000</div>
+            </div>
+          </div>
+          <button id="btnRestart" class="pixel-btn primary">JOGAR NOVAMENTE</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Instruções Rápidas -->
+    <footer class="controls-footer">
+      <div class="key-hint"><kbd>ESPAÇO</kbd> / <kbd>↑</kbd> / <kbd>CLIQUE</kbd> Pular (segure p/ pulo alto)</div>
+      <div class="key-hint"><kbd>↓</kbd> / <kbd>S</kbd> Abaixar / Cair rápido</div>
+      <div class="key-hint"><kbd>ESC</kbd> / <kbd>P</kbd> Pausar</div>
+    </footer>
+  </main>
+
+  <!-- Assinatura e Descrição no Canto da Página -->
+  <aside class="creator-corner" aria-label="Créditos do criador">
+    <div class="creator-name">🐔 Criado por: Everson</div>
+    <p class="creator-desc">Versão de demonstração e teste — Projeto Chicken Run 2D.</p>
+  </aside>
+
+  <script>
+    /**
+     * ============================================================================
+     * CHICKEN RUN: A CORRIDA DA GALINHA
+     * Engine 2D Endless Runner em Pixel Art Procedural + Web Audio API
+     * ============================================================================
+     */
+
+    (function () {
+      'use strict';
+
+      // --------------------------------------------------------------------------
+      // 1. SISTEMA DE ÁUDIO RETRÔ (WEB AUDIO API - SEM ARQUIVOS EXTERNOS)
+      // --------------------------------------------------------------------------
+      class RetroAudio {
+        constructor() {
+          this.ctx = null;
+          this.muted = localStorage.getItem('chicken_run_muted') === 'true';
+        }
+
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        }
+
+        toggleMute() {
+          this.muted = !this.muted;
+          localStorage.setItem('chicken_run_muted', String(this.muted));
+          return this.muted;
+        }
+
+        playTone(freq, endFreq, duration, type = 'square', volume = 0.12, delay = 0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          const now = this.ctx.currentTime + delay;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+          if (endFreq !== freq) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), now + duration);
+          }
+
+          gain.gain.setValueAtTime(volume, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + duration);
+        }
+
+        playStep(alt) {
+          // Passo suave de galinha no chão
+          this.playTone(alt ? 155 : 190, 85, 0.035, 'triangle', 0.055);
+        }
+
+        playJump() {
+          // Som retrô ascendente + cacarejo curto
+          this.playTone(240, 560, 0.13, 'square', 0.11);
+          this.playTone(520, 740, 0.08, 'triangle', 0.08, 0.05);
+        }
+
+        playDuck() {
+          this.playTone(220, 130, 0.06, 'sine', 0.06);
+        }
+
+        playPassObstacle() {
+          this.playTone(660, 880, 0.06, 'sine', 0.05);
+        }
+
+        playMilestone() {
+          // Fanfarra 8-bit a cada 100 pontos
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((n, i) => {
+            this.playTone(n, n, 0.09, 'square', 0.09, i * 0.075);
+          });
+        }
+
+        playNewRecord() {
+          const notes = [587.33, 739.99, 880, 1174.66, 880, 1174.66];
+          notes.forEach((n, i) => {
+            this.playTone(n, n, 0.11, 'square', 0.11, i * 0.085);
+          });
+        }
+
+        playStart() {
+          this.playTone(330, 440, 0.08, 'square', 0.1, 0);
+          this.playTone(440, 660, 0.12, 'square', 0.1, 0.08);
+        }
+
+        playCrash() {
+          // Impacto + cacarejo descendente de derrota
+          this.playTone(180, 45, 0.25, 'sawtooth', 0.18, 0);
+          this.playTone(420, 190, 0.14, 'square', 0.12, 0.05);
+          this.playTone(310, 120, 0.22, 'square', 0.12, 0.18);
+        }
+      }
+
+      const audio = new RetroAudio();
+
+      // --------------------------------------------------------------------------
+      // 2. CONFIGURAÇÃO DO CANVAS E RENDERIZADOR PIXEL ART
+      // --------------------------------------------------------------------------
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Resolução lógica interna fixa para estética pixel art 100% nítida
+      const LOGICAL_WIDTH = 800;
+      const LOGICAL_HEIGHT = 350;
+      const GROUND_Y = 282;
+
+      canvas.width = LOGICAL_WIDTH;
+      canvas.height = LOGICAL_HEIGHT;
+
+      function disableSmoothing() {
+        ctx.imageSmoothingEnabled = false;
+        ctx.mozImageSmoothingEnabled = false;
+        ctx.webkitImageSmoothingEnabled = false;
+        ctx.msImageSmoothingEnabled = false;
+      }
+      disableSmoothing();
+
+      // Paleta de cores Pixel Art
+      const PALETTE = {
+        '.': null,
+        'W': '#ffffff', // Branco pena
+        'S': '#dee2e6', // Sombra pena branca
+        'R': '#e63946', // Vermelho crista/trator
+        'D': '#9e1925', // Vermelho escuro
+        'Y': '#ffd43b', // Amarelo bico/pés
+        'O': '#f76707', // Laranja sombra bico/pés
+        'K': '#181a24', // Preto contorno/olho
+        'B': '#8d5524', // Marrom madeira/terra
+        'L': '#c68642', // Marrom claro madeira
+        'C': '#5c3317', // Marrom escuro contorno
+        'G': '#6c757d', // Cinza pedra/metal
+        'A': '#adb5bd', // Cinza claro
+        'E': '#343a40', // Cinza escuro / pneu
+        'V': '#40916c', // Verde trator / folha
+        'N': '#74c69d', // Verde claro
+        'T': '#e07a5f', // Galo marrom/avermelhado
+        'P': '#f4a261', // Cachorro caramelo
+        'U': '#3a86ff'  // Azul vidro/detalhe
+      };
+
+      /**
+       * Desenha uma matriz de strings em pixel art nítida
+       */
+      function drawPixelMatrix(matrix, x, y, scale = 3, flipX = false) {
+        const rows = matrix.length;
+        const cols = matrix[0].length;
+        const rx = Math.round(x);
+        const ry = Math.round(y);
+
+        for (let r = 0; r < rows; r++) {
+          const rowStr = matrix[r];
+          for (let c = 0; c < cols; c++) {
+            const ch = rowStr[c];
+            const color = PALETTE[ch];
+            if (!color) continue;
+            ctx.fillStyle = color;
+            const drawCol = flipX ? (cols - 1 - c) : c;
+            ctx.fillRect(rx + drawCol * scale, ry + r * scale, scale, scale);
+          }
+        }
+      }
+
+      // --------------------------------------------------------------------------
+      // 3. SPRITES EM PIXEL ART ARTESANAL (MATRIZES)
+      // --------------------------------------------------------------------------
+      const CHICKEN_SPRITES = {
+        // Parada (16x16)
+        idle: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKWW......',
+          '...WWWWWWWYY....',
+          '...WWWWWWYYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWWWWWWW.....',
+          'WWWWSSSSWWWW....',
+          'WWWWSSSSWWWW....',
+          '.WWWWWWWWWW.....',
+          '..WWWWWWWW......',
+          '....Y....Y......',
+          '....Y....Y......',
+          '...YYY..YYY.....',
+          '................'
+        ],
+        // Piscando
+        blink: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKKW......',
+          '...WWWWWWWYY....',
+          '...WWWWWWYYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWWWWWWW.....',
+          'WWWWSSSSWWWW....',
+          'WWWWSSSSWWWW....',
+          '.WWWWWWWWWW.....',
+          '..WWWWWWWW......',
+          '....Y....Y......',
+          '....Y....Y......',
+          '...YYY..YYY.....',
+          '................'
+        ],
+        // Corrida Frame 1 (perna esquerda frente, asa cima)
+        run1: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKWW......',
+          '...WWWWWWWYY....',
+          '...WWWWWWYYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWSSSSWW.....',
+          'WWWWSSSSSSWW....',
+          'WWWWWWWWWWWW....',
+          '.WWWWWWWWWW.....',
+          '..WWWWWWWW......',
+          '...Y......Y.....',
+          '..YY.......YY...',
+          '.YYY............',
+          '................'
+        ],
+        // Corrida Frame 2 (pernas cruzando, asa meio)
+        run2: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKWW......',
+          '...WWWWWWWYY....',
+          '...WWWWWWYYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWWWWWWW.....',
+          'WWWWSSSSWWWW....',
+          'WWWWSSSSWWWW....',
+          '.WWWWWWWWWW.....',
+          '..WWWWWWWW......',
+          '.....Y..Y.......',
+          '.....Y..Y.......',
+          '....YYY.YYY.....',
+          '................'
+        ],
+        // Corrida Frame 3 (perna direita frente, asa baixo)
+        run3: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKWW......',
+          '...WWWWWWWYY....',
+          '...WWWWWWYYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWWWWWWW.....',
+          'WWWWWWWWWWWW....',
+          'WWWWSSSSSSWW....',
+          '.WWWWSSSSWW.....',
+          '..WWWWWWWW......',
+          '.....Y....Y.....',
+          '....YY...YY.....',
+          '........YYY.....',
+          '................'
+        ],
+        // Pulando (asas abertas para cima)
+        jump: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWWKWW......',
+          '..WWWWWWWWYY....',
+          '.SSWWWWWWYYY....',
+          'SSSWWWWWWRR.....',
+          'SSWWWWWWWWW.....',
+          '.WWWWWWWWWWW....',
+          '..WWWWWWWWW.....',
+          '...WWWWWWW......',
+          '....WWWWW.......',
+          '...Y.....Y......',
+          '..YY.....YY.....',
+          '................',
+          '................'
+        ],
+        // Agachada / Abaixada Frame 1 (20x11)
+        duck1: [
+          '...........RRR......',
+          '..........RRRRR.....',
+          '....WWWWWWWWWW......',
+          '..WWWWWWWWWWKWW.....',
+          '.WWWWSSSSWWWWWWYY...',
+          'WWWWSSSSSSWWWWYYY...',
+          'WWWWWWWWWWWWWRR.....',
+          '.WWWWWWWWWWWWW......',
+          '...Y.......Y........',
+          '..YYY.....YYY.......',
+          '....................'
+        ],
+        // Agachada / Abaixada Frame 2
+        duck2: [
+          '...........RRR......',
+          '..........RRRRR.....',
+          '....WWWWWWWWWW......',
+          '..WWWWWWWWWWKWW.....',
+          '.WWWWWWWWWWWWWWYY...',
+          'WWWWSSSSSSWWWWYYY...',
+          'WWWWSSSSWWWWWRR.....',
+          '.WWWWWWWWWWWWW......',
+          '.....Y...Y..........',
+          '....YYY.YYY.........',
+          '....................'
+        ],
+        // Derrota / Colisão (olhos em X)
+        dead: [
+          '.....RRR........',
+          '....RRRRR.......',
+          '....WWWWW.......',
+          '...WWWKWKW......',
+          '...WWWWKWWYY....',
+          '...WWWKWKWYY....',
+          '..WWWWWWWRR.....',
+          '.WWWWWWWWWW.....',
+          'WWWWSSSSWWWW....',
+          'WWWWSSSSWWWW....',
+          '.WWWWWWWWWW.....',
+          '..WWWWWWWW......',
+          '...Y......Y.....',
+          '..YY......YY....',
+          '................',
+          '................'
+        ]
+      };
+
+      // Sprites dos Obstáculos
+      const OBSTACLE_SPRITES = {
+        crate: [
+          'CCCCCCCCCCCCCC',
+          'CLLLLLLLLLLLLC',
+          'CLBBBBBBBBBBBC',
+          'CLBCBBBBBBCBBC',
+          'CLBBCBBBBBCBBC',
+          'CLBBBCBBBCBBBC',
+          'CLBBBBCBCBBBBC',
+          'CLBBBBBCBBBBBC',
+          'CLBBBBCBCBBBBC',
+          'CLBBBCBBBCBBBC',
+          'CLBBCBBBBBCBBC',
+          'CLBCBBBBBBCBBC',
+          'CLLLLLLLLLLLLC',
+          'CCCCCCCCCCCCCC'
+        ],
+        rock: [
+          '....GGGGGG....',
+          '..GGAAAAAAGG..',
+          '.GAAAAGGGAAAG.',
+          'GAAAGGGGGGGGGG',
+          'GGGGGGGGGGGGGG',
+          'GGGGEEEEGGGGGG',
+          'GGGEEEEEEGGGGG',
+          'GGGGGGGGGGGGGG',
+          'EEEEEEEEEEEEEE'
+        ],
+        fence: [
+          '..CC......CC..',
+          '.CLLC....CLLC.',
+          '.CLLC....CLLC.',
+          'CLLLLLLLLLLLLC',
+          'CBBBBBBBBBBBBC',
+          '.CLLC....CLLC.',
+          '.CLLC....CLLC.',
+          'CLLLLLLLLLLLLC',
+          'CBBBBBBBBBBBBC',
+          '.CLLC....CLLC.',
+          '.CLLC....CLLC.',
+          '.CCCC....CCCC.'
+        ],
+        branchLow: [
+          '..........CC......',
+          '........CCLLC.....',
+          '..CCCCCCLLBBCC....',
+          'CCLLLLLLLLBBBBCC..',
+          'CBBBBBBBBBBBBBBBC.',
+          '.CCCCCCCCCCCCCCCC.'
+        ],
+        branchHigh: [
+          'CCCCCCCCCCCCCCCCCC',
+          'CBBBBBBBBBBBBBBBBC',
+          '.CCLLBBCC....CCLLC',
+          '...CCCC........CC.'
+        ],
+        rooster1: [
+          '.......RRR......',
+          '......RRRRR.....',
+          '......TTTTT.....',
+          '....YYTTKTT.....',
+          '...YYYTTTTT.....',
+          '.....RRTTTT.....',
+          '.....TTTTTTDDDD.',
+          '....TTTTTTTTDDDD',
+          '...TTTTPPTTTTDD.',
+          '....TTTTTTTT....',
+          '.....TTTTTT.....',
+          '.....Y....Y.....',
+          '....YY.....YY...',
+          '...YYY..........'
+        ],
+        rooster2: [
+          '.......RRR......',
+          '......RRRRR.....',
+          '......TTTTT.....',
+          '....YYTTKTT.....',
+          '...YYYTTTTT.....',
+          '.....RRTTTT.....',
+          '.....TTTTTTDDDD.',
+          '....TTTTTTTTDDDD',
+          '...TTTTPPTTTTDD.',
+          '....TTTTTTTT....',
+          '.....TTTTTT.....',
+          '......Y..Y......',
+          '.....YY..YY.....',
+          '........YYY.....'
+        ],
+        dog1: [
+          '..CC........CC..',
+          '.CPPC......CPPC.',
+          '.CPPPPPPPPPPPPC.',
+          'CPPWKPPPPPPPPPC.',
+          'KPPPPPPPPPPPPPP.',
+          '.CCCCCCCCPPPPPP.',
+          '.....CPPPPPPPPC.',
+          '....CPPPPPPPPPCC',
+          '....CPPPPPPPPC..',
+          '...CPP......CPP.',
+          '..CPP........CPP',
+          '.CCC..........CC'
+        ],
+        dog2: [
+          '..CC........CC..',
+          '.CPPC......CPPC.',
+          '.CPPPPPPPPPPPPC.',
+          'CPPWKPPPPPPPPPC.',
+          'KPPPPPPPPPPPPPP.',
+          '.CCCCCCCCPPPPPP.',
+          '.....CPPPPPPPPC.',
+          '....CPPPPPPPPPCC',
+          '....CPPPPPPPPC..',
+          '.....CPP..CPP...',
+          '......CPPCPP....',
+          '.......CCCC.....'
+        ],
+        tractorRed: [
+          '.........CCCCCC.....',
+          '........CUUUUUUC....',
+          '........CUUUUUUC....',
+          '....EE..CUUUUUUC....',
+          '....EE..CRRRRRRC....',
+          '..RRRRRRRRRRRRRRC...',
+          '.RRRRRRRRRRRRRRRRC..',
+          'RRRRRRRRRRRRRRRRRRC.',
+          'RRRRRRRRRREEEEEERRC.',
+          'RRRRRRRRREEEAAAEEEC.',
+          '..EEEE...EEAAAAAEEC.',
+          '.EEAAEE..EEAAAAAEEC.',
+          '.EEAAEE..EEEAAAEEEC.',
+          '..EEEE....EEEEEEE...'
+        ],
+        tractorGreen: [
+          '.........CCCCCC.....',
+          '........CUUUUUUC....',
+          '........CUUUUUUC....',
+          '....EE..CUUUUUUC....',
+          '....EE..CVVVVVVC....',
+          '..VVVVVVVVVVVVVVC...',
+          '.VVVVVVVVVVVVVVVVC..',
+          'VVVVVVVVVVVVVVVVVVC.',
+          'VVVVVVVVVVEEEEEECVC.',
+          'VVVVVVVVVEEEAAAEEEC.',
+          '..EEEE...EEAAAAAEEC.',
+          '.EEAAEE..EEAAAAAEEC.',
+          '.EEAAEE..EEEAAAEEEC.',
+          '..EEEE....EEEEEEE...'
+        ]
+      };
+
+      // --------------------------------------------------------------------------
+      // 4. ESTADO GLOBAL DO JOGO E CONFIGURAÇÕES DE FÍSICA
+      // --------------------------------------------------------------------------
+      const STATE = {
+        START: 'START',
+        PLAYING: 'PLAYING',
+        PAUSED: 'PAUSED',
+        GAMEOVER: 'GAMEOVER'
+      };
+
+      let gameState = STATE.START;
+      let score = 0;
+      let highScore = parseInt(localStorage.getItem('chicken_run_highscore') || '0', 10);
+      let newRecordAchieved = false;
+      let lastMilestone = 0;
+
+      // Velocidade e dificuldade
+      const BASE_SPEED = 360; // px/seg
+      const MAX_SPEED = 860;
+      let gameSpeed = BASE_SPEED;
+      let distanceTraveled = 0;
+      let frameTimeAccumulator = 0;
+      let globalTimer = 0;
+
+      // Screen Shake
+      let shakeTimer = 0;
+      let shakeIntensity = 0;
+
+      // Galinha (Protagonista)
+      const chicken = {
+        x: 76,
+        y: GROUND_Y - 48,
+        width: 48,
+        height: 48,
+        vy: 0,
+        gravity: 2150,
+        jumpForce: -640,
+        jumpHoldTimer: 0,
+        maxJumpHold: 0.17,
+        isJumping: false,
+        isHoldingJump: false,
+        isDucking: false,
+        animTimer: 0,
+        animFrame: 0,
+        stepSoundToggle: false,
+        blinkTimer: 0,
+        isBlinking: false
+      };
+
+      // Listas de Entidades
+      let obstacles = [];
+      let particles = [];
+      let floatingTexts = [];
+      let clouds = [];
+      let bgHills = [];
+      let bgFences = [];
+      let bgTrees = [];
+      let stars = [];
+      let fireflies = [];
+      let nextObstacleTimer = 1.1;
+
+      // --------------------------------------------------------------------------
+      // 5. INICIALIZAÇÃO DO CENÁRIO PARALLAX
+      // --------------------------------------------------------------------------
+      function initScenery() {
+        clouds = [];
+        for (let i = 0; i < 6; i++) {
+          clouds.push({
+            x: i * 160 + Math.random() * 60,
+            y: 28 + Math.random() * 65,
+            w: 54 + Math.floor(Math.random() * 34),
+            speedFactor: 0.12 + Math.random() * 0.08
+          });
+        }
+
+        bgHills = [];
+        for (let i = 0; i < 6; i++) {
+          bgHills.push({
+            x: i * 190,
+            w: 210,
+            h: 45 + (i % 3) * 18,
+            hasBarn: i === 1,
+            hasWindmill: i === 4
+          });
+        }
+
+        bgFences = [];
+        for (let i = 0; i < 14; i++) {
+          bgFences.push({ x: i * 64 });
+        }
+
+        bgTrees = [];
+        for (let i = 0; i < 8; i++) {
+          bgTrees.push({
+            x: i * 130 + Math.random() * 40,
+            type: i % 2 === 0 ? 'tree' : 'bush'
+          });
+        }
+
+        stars = [];
+        for (let i = 0; i < 45; i++) {
+          stars.push({
+            x: Math.random() * LOGICAL_WIDTH,
+            y: 12 + Math.random() * 135,
+            size: Math.random() > 0.75 ? 3 : 2,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        fireflies = [];
+        for (let i = 0; i < 14; i++) {
+          fireflies.push({
+            x: Math.random() * LOGICAL_WIDTH,
+            y: 165 + Math.random() * 95,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      // --------------------------------------------------------------------------
+      // 6. SISTEMA DE PARTÍCULAS E TEXTOS FLUTUANTES (JUICE)
+      // --------------------------------------------------------------------------
+      function spawnDust(x, y, count = 4, color = '#e9d8a6', speedScale = 1) {
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: x + (Math.random() - 0.5) * 12,
+            y: y + (Math.random() - 0.5) * 6,
+            vx: (-40 - Math.random() * 90) * speedScale,
+            vy: (-20 - Math.random() * 75) * speedScale,
+            size: Math.random() > 0.5 ? 4 : 3,
+            color,
+            life: 0.28 + Math.random() * 0.2,
+            maxLife: 0.48,
+            gravity: 160
+          });
+        }
+      }
+
+      function spawnFeathers(x, y, count = 10) {
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x,
+            y,
+            vx: (Math.random() - 0.4) * 240,
+            vy: -120 - Math.random() * 190,
+            size: Math.random() > 0.4 ? 5 : 4,
+            color: i % 4 === 0 ? '#e63946' : '#ffffff',
+            life: 0.7 + Math.random() * 0.45,
+            maxLife: 1.15,
+            gravity: 320
+          });
+        }
+      }
+
+      function spawnConfetti(x, y, count = 28) {
+        const colors = ['#ffd43b', '#ff595e', '#52b788', '#3a86ff', '#ffffff'];
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: x + (Math.random() - 0.5) * 160,
+            y: y + (Math.random() - 0.5) * 40,
+            vx: (Math.random() - 0.5) * 260,
+            vy: -140 - Math.random() * 200,
+            size: 5,
+            color: colors[i % colors.length],
+            life: 1.1 + Math.random() * 0.5,
+            maxLife: 1.6,
+            gravity: 260
+          });
+        }
+      }
+
+      function spawnFloatingText(text, x, y, color = '#ffd43b') {
+        floatingTexts.push({
+          text,
+          x,
+          y,
+          vy: -45,
+          life: 0.85,
+          maxLife: 0.85,
+          color
+        });
+      }
+
+      // --------------------------------------------------------------------------
+      // 7. CONTROLES DE PULO, ABAIXAR E FLUXO DO JOGO
+      // --------------------------------------------------------------------------
+      function startJump() {
+        if (gameState !== STATE.PLAYING) return;
+        if (!chicken.isJumping) {
+          chicken.isJumping = true;
+          chicken.isHoldingJump = true;
+          chicken.jumpHoldTimer = 0;
+          chicken.isDucking = false;
+          chicken.vy = chicken.jumpForce;
+          audio.playJump();
+          spawnDust(chicken.x + 20, GROUND_Y - 2, 7, '#f8f9fa', 1.2);
+        }
+      }
+
+      function releaseJump() {
+        chicken.isHoldingJump = false;
+      }
+
+      function setDucking(active) {
+        if (gameState !== STATE.PLAYING) return;
+        if (active) {
+          if (chicken.isJumping) {
+            // Queda rápida no ar!
+            chicken.vy = Math.max(chicken.vy, 720);
+            chicken.isHoldingJump = false;
+          } else if (!chicken.isDucking) {
+            chicken.isDucking = true;
+            audio.playDuck();
+          }
+        } else {
+          chicken.isDucking = false;
+        }
+      }
+
+      function resetGame() {
+        score = 0;
+        distanceTraveled = 0;
+        gameSpeed = BASE_SPEED;
+        newRecordAchieved = false;
+        lastMilestone = 0;
+
+        chicken.y = GROUND_Y - 48;
+        chicken.vy = 0;
+        chicken.isJumping = false;
+        chicken.isHoldingJump = false;
+        chicken.isDucking = false;
+        chicken.animTimer = 0;
+        chicken.animFrame = 0;
+
+        obstacles = [];
+        particles = [];
+        floatingTexts = [];
+        nextObstacleTimer = 0.85;
+        shakeTimer = 0;
+
+        gameState = STATE.PLAYING;
+        updateOverlays();
+        audio.playStart();
+      }
+
+      function togglePause() {
+        if (gameState === STATE.PLAYING) {
+          gameState = STATE.PAUSED;
+          updateOverlays();
+        } else if (gameState === STATE.PAUSED) {
+          gameState = STATE.PLAYING;
+          lastTimestamp = performance.now();
+          updateOverlays();
+        }
+      }
+
+      function triggerGameOver() {
+        gameState = STATE.GAMEOVER;
+        shakeTimer = 0.35;
+        shakeIntensity = 9;
+        audio.playCrash();
+        spawnFeathers(chicken.x + 24, chicken.y + 20, 16);
+
+        const finalIntScore = Math.floor(score);
+        if (finalIntScore > highScore) {
+          highScore = finalIntScore;
+          localStorage.setItem('chicken_run_highscore', String(highScore));
+          newRecordAchieved = true;
+        }
+
+        document.getElementById('finalScore').textContent = String(finalIntScore).padStart(5, '0');
+        document.getElementById('finalHighScore').textContent = String(highScore).padStart(5, '0');
+        document.getElementById('newRecordBadge').style.display = newRecordAchieved ? 'inline-block' : 'none';
+
+        updateOverlays();
+      }
+
+      // --------------------------------------------------------------------------
+      // 8. GERAÇÃO INTELIGENTE DE OBSTÁCULOS
+      // --------------------------------------------------------------------------
+      function spawnObstacle() {
+        const currentScore = Math.floor(score);
+        const pool = ['crate', 'rock', 'fence', 'branchLow'];
+
+        if (currentScore >= 60) pool.push('crateDouble');
+        if (currentScore >= 120) pool.push('branchHigh');
+        if (currentScore >= 180) pool.push('rooster');
+        if (currentScore >= 280) pool.push('dog');
+        if (currentScore >= 400) pool.push('tractor');
+
+        const type = pool[Math.floor(Math.random() * pool.length)];
+        const spawnX = LOGICAL_WIDTH + 30;
+
+        let obs = {
+          type,
+          x: spawnX,
+          y: GROUND_Y,
+          w: 42,
+          h: 42,
+          speedBonus: 0,
+          animTimer: 0,
+          animFrame: 0,
+          passed: false,
+          variant: Math.random() > 0.5 ? 'red' : 'green'
+        };
+
+        switch (type) {
+          case 'crate':
+            obs.w = 42;
+            obs.h = 42;
+            obs.y = GROUND_Y - obs.h;
+            break;
+          case 'crateDouble':
+            obs.w = 84;
+            obs.h = 42;
+            obs.y = GROUND_Y - obs.h;
+            break;
+          case 'rock':
+            obs.w = 42;
+            obs.h = 27;
+            obs.y = GROUND_Y - obs.h;
+            break;
+          case 'fence':
+            obs.w = 42;
+            obs.h = 36;
+            obs.y = GROUND_Y - obs.h;
+            break;
+          case 'branchLow':
+            obs.w = 54;
+            obs.h = 18;
+            obs.y = GROUND_Y - obs.h;
+            break;
+          case 'branchHigh':
+            // Galho alto suspenso: jogador pode abaixar por baixo OU pular por cima!
+            obs.w = 54;
+            obs.h = 16;
+            obs.y = GROUND_Y - 52;
+            break;
+          case 'rooster':
+            obs.w = 48;
+            obs.h = 42;
+            obs.y = GROUND_Y - obs.h;
+            obs.speedBonus = 65; // Corre na direção oposta
+            break;
+          case 'dog':
+            obs.w = 54;
+            obs.h = 36;
+            obs.y = GROUND_Y - obs.h;
+            obs.speedBonus = 115; // Cachorro mais rápido
+            break;
+          case 'tractor':
+            obs.w = 60;
+            obs.h = 42;
+            obs.y = GROUND_Y - obs.h;
+            obs.speedBonus = 40;
+            break;
+        }
+
+        obstacles.push(obs);
+
+        // Calcula intervalo seguro baseado na velocidade atual para nunca ser impossível
+        const minGapTime = Math.max(0.78, 1.32 - (gameSpeed - BASE_SPEED) / 950);
+        const randomGap = 0.25 + Math.random() * 0.65;
+        nextObstacleTimer = minGapTime + randomGap;
+      }
+
+      // --------------------------------------------------------------------------
+      // 9. ATUALIZAÇÃO DE LÓGICA E COLISÕES (60 FPS)
+      // --------------------------------------------------------------------------
+      function update(dt) {
+        globalTimer += dt;
+
+        if (shakeTimer > 0) {
+          shakeTimer = Math.max(0, shakeTimer - dt);
+        }
+
+        // Animação idle na tela inicial
+        if (gameState === STATE.START) {
+          chicken.blinkTimer += dt;
+          if (chicken.blinkTimer > 2.6) {
+            chicken.isBlinking = true;
+            if (chicken.blinkTimer > 2.8) {
+              chicken.isBlinking = false;
+              chicken.blinkTimer = 0;
+            }
+          }
+          updateScenery(dt, 90);
+          updateParticles(dt);
+          return;
+        }
+
+        if (gameState !== STATE.PLAYING) {
+          updateParticles(dt);
+          updateFloatingTexts(dt);
+          return;
+        }
+
+        // Progressão de velocidade e pontuação
+        gameSpeed = Math.min(MAX_SPEED, BASE_SPEED + score * 0.42);
+        distanceTraveled += gameSpeed * dt;
+        score = distanceTraveled * 0.032;
+
+        const intScore = Math.floor(score);
+
+        // Marco a cada 100 pontos
+        if (intScore >= lastMilestone + 100) {
+          lastMilestone = Math.floor(intScore / 100) * 100;
+          audio.playMilestone();
+          spawnFloatingText(`+${lastMilestone} PTS!`, chicken.x + 40, chicken.y - 25, '#8ce99a');
+        }
+
+        // Recorde ultrapassado ao vivo
+        if (!newRecordAchieved && highScore > 0 && intScore > highScore) {
+          newRecordAchieved = true;
+          audio.playNewRecord();
+          spawnConfetti(LOGICAL_WIDTH * 0.5, 95, 34);
+          spawnFloatingText('NOVO RECORDE!', LOGICAL_WIDTH * 0.5, 85, '#ffd43b');
+        }
+
+        // Física da Galinha (Pulo variável)
+        if (chicken.isJumping) {
+          if (chicken.isHoldingJump && chicken.jumpHoldTimer < chicken.maxJumpHold) {
+            chicken.jumpHoldTimer += dt;
+            chicken.vy += chicken.gravity * 0.32 * dt;
+          } else {
+            chicken.vy += chicken.gravity * dt;
+          }
+
+          chicken.y += chicken.vy * dt;
+
+          const standHeight = 48;
+          if (chicken.y >= GROUND_Y - standHeight) {
+            chicken.y = GROUND_Y - standHeight;
+            chicken.vy = 0;
+            chicken.isJumping = false;
+            chicken.isHoldingJump = false;
+            spawnDust(chicken.x + 22, GROUND_Y - 2, 6, '#e9d8a6', 0.9);
+          }
+        } else {
+          chicken.y = chicken.isDucking ? (GROUND_Y - 33) : (GROUND_Y - 48);
+        }
+
+        // Animação de corrida e passos
+        if (!chicken.isJumping) {
+          const stepRate = Math.max(0.055, 0.11 - (gameSpeed - BASE_SPEED) / 8000);
+          chicken.animTimer += dt;
+          if (chicken.animTimer >= stepRate) {
+            chicken.animTimer = 0;
+            chicken.animFrame = (chicken.animFrame + 1) % 4;
+            if (chicken.animFrame === 0 || chicken.animFrame === 2) {
+              chicken.stepSoundToggle = !chicken.stepSoundToggle;
+              audio.playStep(chicken.stepSoundToggle);
+              spawnDust(chicken.x + 12, GROUND_Y - 2, 2, '#d4a373', 0.7);
+            }
+          }
+        }
+
+        // Atualizar Cenário Parallax
+        updateScenery(dt, gameSpeed);
+
+        // Gerar e atualizar Obstáculos
+        nextObstacleTimer -= dt;
+        if (nextObstacleTimer <= 0) {
+          spawnObstacle();
+        }
+
+        // Hitbox justa da galinha (margem interna para evitar frustração)
+        const cBox = chicken.isDucking
+          ? { x: chicken.x + 8, y: GROUND_Y - 27, w: 42, h: 24 }
+          : { x: chicken.x + 10, y: chicken.y + 8, w: 28, h: 36 };
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+          const obs = obstacles[i];
+          obs.x -= (gameSpeed + obs.speedBonus) * dt;
+          obs.animTimer += dt;
+
+          if (obs.animTimer > 0.12) {
+            obs.animTimer = 0;
+            obs.animFrame = (obs.animFrame + 1) % 2;
+            // Fumaça do escapamento do trator
+            if (obs.type === 'tractor') {
+              spawnDust(obs.x + 16, obs.y + 6, 1, '#adb5bd', 0.4);
+            }
+          }
+
+          // Verificar se ultrapassou o obstáculo com sucesso
+          if (!obs.passed && obs.x + obs.w < chicken.x) {
+            obs.passed = true;
+            score += 5;
+            audio.playPassObstacle();
+            spawnFloatingText('+5', chicken.x + 20, chicken.y - 10, '#ffffff');
+          }
+
+          // Hitbox justa do obstáculo
+          const oBox = {
+            x: obs.x + 5,
+            y: obs.y + 4,
+            w: obs.w - 10,
+            h: obs.h - 6
+          };
+
+          if (checkAABB(cBox, oBox)) {
+            triggerGameOver();
+            return;
+          }
+
+          if (obs.x + obs.w < -60) {
+            obstacles.splice(i, 1);
+          }
+        }
+
+        updateParticles(dt);
+        updateFloatingTexts(dt);
+      }
+
+      function updateScenery(dt, speed) {
+        clouds.forEach((c) => {
+          c.x -= speed * c.speedFactor * dt;
+          if (c.x + c.w < -20) {
+            c.x = LOGICAL_WIDTH + 30 + Math.random() * 80;
+            c.y = 26 + Math.random() * 65;
+          }
+        });
+
+        bgHills.forEach((h) => {
+          h.x -= speed * 0.22 * dt;
+          if (h.x + h.w < -30) {
+            h.x += bgHills.length * 190;
+          }
+        });
+
+        bgTrees.forEach((t) => {
+          t.x -= speed * 0.45 * dt;
+          if (t.x < -70) {
+            t.x += bgTrees.length * 130;
+          }
+        });
+
+        bgFences.forEach((f) => {
+          f.x -= speed * 0.72 * dt;
+          if (f.x < -64) {
+            f.x += bgFences.length * 64;
+          }
+        });
+      }
+
+      function updateParticles(dt) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.life -= dt;
+          p.vy += p.gravity * dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+          }
+        }
+      }
+
+      function updateFloatingTexts(dt) {
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+          const ft = floatingTexts[i];
+          ft.life -= dt;
+          ft.y += ft.vy * dt;
+          if (ft.life <= 0) {
+            floatingTexts.splice(i, 1);
+          }
+        }
+      }
+
+      function checkAABB(a, b) {
+        return (
+          a.x < b.x + b.w &&
+          a.x + a.w > b.x &&
+          a.y < b.y + b.h &&
+          a.y + a.h > b.y
+        );
+      }
+
+      // --------------------------------------------------------------------------
+      // 10. RENDERIZAÇÃO DO CENÁRIO (DIA -> PÔR DO SOL -> NOITE), ENTIDADES E HUD
+      // --------------------------------------------------------------------------
+      function getDayPhase() {
+        // Alterna cenário a cada 350 pontos: 0 = Dia, 1 = Pôr do Sol, 2 = Noite
+        const cycle = Math.floor(score / 350) % 3;
+        return cycle;
+      }
+
+      function renderSkyAndCelestial(phase) {
+        if (phase === 0) {
+          // DIA
+          ctx.fillStyle = '#74c0fc';
+          ctx.fillRect(0, 0, LOGICAL_WIDTH, GROUND_Y);
+          ctx.fillStyle = '#a5d8ff';
+          ctx.fillRect(0, 140, LOGICAL_WIDTH, GROUND_Y - 140);
+
+          // Sol Pixel Art
+          const sunX = 650;
+          const sunY = 58;
+          ctx.fillStyle = 'rgba(255, 212, 59, 0.25)';
+          ctx.fillRect(sunX - 24, sunY - 24, 48, 48);
+          ctx.fillStyle = '#ffd43b';
+          ctx.fillRect(sunX - 16, sunY - 16, 32, 32);
+          ctx.fillStyle = '#fff3bf';
+          ctx.fillRect(sunX - 10, sunY - 10, 14, 14);
+        } else if (phase === 1) {
+          // PÔR DO SOL
+          ctx.fillStyle = '#7048e8';
+          ctx.fillRect(0, 0, LOGICAL_WIDTH, 90);
+          ctx.fillStyle = '#f76707';
+          ctx.fillRect(0, 90, LOGICAL_WIDTH, 100);
+          ctx.fillStyle = '#ffc078';
+          ctx.fillRect(0, 190, LOGICAL_WIDTH, GROUND_Y - 190);
+
+          // Sol poente grande no horizonte
+          const sunX = 620;
+          const sunY = 175;
+          ctx.fillStyle = '#ff922b';
+          ctx.fillRect(sunX - 26, sunY - 26, 52, 52);
+          ctx.fillStyle = '#ffd43b';
+          ctx.fillRect(sunX - 18, sunY - 18, 36, 36);
+        } else {
+          // NOITE
+          ctx.fillStyle = '#0b132b';
+          ctx.fillRect(0, 0, LOGICAL_WIDTH, 160);
+          ctx.fillStyle = '#1c2541';
+          ctx.fillRect(0, 160, LOGICAL_WIDTH, GROUND_Y - 160);
+
+          // Estrelas cintilantes
+          stars.forEach((s) => {
+            const twinkle = Math.sin(globalTimer * 4 + s.phase);
+            ctx.fillStyle = twinkle > 0 ? '#ffffff' : '#748cab';
+            ctx.fillRect(Math.round(s.x), Math.round(s.y), s.size, s.size);
+          });
+
+          // Lua crescente pixel art
+          const moonX = 660;
+          const moonY = 55;
+          ctx.fillStyle = '#fff3bf';
+          ctx.fillRect(moonX - 14, moonY - 14, 28, 28);
+          ctx.fillStyle = '#0b132b';
+          ctx.fillRect(moonX - 4, moonY - 14, 18, 20);
+        }
+
+        // Nuvens em Pixel Art
+        clouds.forEach((c) => {
+          const cx = Math.round(c.x);
+          const cy = Math.round(c.y);
+          ctx.fillStyle = phase === 0 ? '#ffffff' : phase === 1 ? '#ffd8a8' : '#3a506b';
+          ctx.fillRect(cx + 8, cy, c.w - 16, 16);
+          ctx.fillRect(cx, cy + 6, c.w, 12);
+          ctx.fillStyle = phase === 0 ? '#e7f5ff' : phase === 1 ? '#ffa94d' : '#1c2541';
+          ctx.fillRect(cx + 4, cy + 14, c.w - 8, 4);
+        });
+      }
+
+      function renderParallaxBackground(phase) {
+        // Colinas distantes + Celeiro + Moinho
+        const hillColor = phase === 0 ? '#69db7c' : phase === 1 ? '#9c36b5' : '#1b4332';
+        const hillDark = phase === 0 ? '#51cf66' : phase === 1 ? '#7048e8' : '#081c15';
+
+        bgHills.forEach((h) => {
+          const hx = Math.round(h.x);
+          const hy = GROUND_Y - h.h;
+          ctx.fillStyle = hillColor;
+          ctx.fillRect(hx + 20, hy, h.w - 40, h.h);
+          ctx.fillRect(hx, hy + 14, h.w, h.h - 14);
+          ctx.fillStyle = hillDark;
+          ctx.fillRect(hx, GROUND_Y - 14, h.w, 14);
+
+          // Celeiro Rural
+          if (h.hasBarn) {
+            const bx = hx + 75;
+            const by = hy - 22;
+            ctx.fillStyle = phase === 2 ? '#590d22' : '#c92a2a';
+            ctx.fillRect(bx, by + 10, 34, 22);
+            ctx.fillStyle = phase === 2 ? '#2b2d42' : '#862e9c';
+            ctx.fillRect(bx - 3, by + 4, 40, 8);
+            ctx.fillRect(bx + 4, by, 26, 6);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx + 12, by + 16, 10, 16);
+          }
+
+          // Moinho de Vento
+          if (h.hasWindmill) {
+            const wx = hx + 90;
+            const wy = hy - 34;
+            ctx.fillStyle = phase === 2 ? '#495057' : '#e9ecef';
+            ctx.fillRect(wx, wy + 12, 16, 30);
+            ctx.fillStyle = '#e63946';
+            ctx.fillRect(wx - 2, wy + 6, 20, 8);
+            // Pás girando
+            const bladeOffset = Math.floor(globalTimer * 4) % 2 === 0 ? 0 : 4;
+            ctx.fillStyle = '#ffd43b';
+            ctx.fillRect(wx + 6, wy - 8 + bladeOffset, 4, 34);
+            ctx.fillRect(wx - 9 + bladeOffset, wy + 7, 34, 4);
+          }
+        });
+
+        // Árvores e Arbustos rurais
+        bgTrees.forEach((t) => {
+          const tx = Math.round(t.x);
+          if (t.type === 'tree') {
+            ctx.fillStyle = phase === 2 ? '#3d2616' : '#7f4f24';
+            ctx.fillRect(tx + 12, GROUND_Y - 26, 8, 26);
+            ctx.fillStyle = phase === 2 ? '#1b4332' : '#2b8a3e';
+            ctx.fillRect(tx, GROUND_Y - 52, 32, 28);
+            ctx.fillStyle = phase === 2 ? '#2d6a4f' : '#40c057';
+            ctx.fillRect(tx + 4, GROUND_Y - 58, 24, 14);
+          } else {
+            ctx.fillStyle = phase === 2 ? '#1b4332' : '#37b24d';
+            ctx.fillRect(tx, GROUND_Y - 18, 34, 18);
+            ctx.fillStyle = phase === 2 ? '#2d6a4f' : '#69db7c';
+            ctx.fillRect(tx + 6, GROUND_Y - 22, 22, 8);
+          }
+        });
+
+        // Cercas rurais no fundo
+        ctx.fillStyle = phase === 2 ? '#5c3317' : '#b07d4f';
+        bgFences.forEach((f) => {
+          const fx = Math.round(f.x);
+          ctx.fillRect(fx + 6, GROUND_Y - 20, 6, 20);
+          ctx.fillRect(fx, GROUND_Y - 15, 64, 4);
+          ctx.fillRect(fx, GROUND_Y - 8, 64, 4);
+        });
+
+        // Vaga-lumes à noite
+        if (phase === 2) {
+          fireflies.forEach((ff) => {
+            const fx = Math.round((ff.x + Math.sin(globalTimer * 2 + ff.phase) * 14 + LOGICAL_WIDTH) % LOGICAL_WIDTH);
+            const fy = Math.round(ff.y + Math.cos(globalTimer * 2.5 + ff.phase) * 8);
+            ctx.fillStyle = '#d8f3dc';
+            ctx.fillRect(fx, fy, 3, 3);
+          });
+        }
+      }
+
+      function renderGround(phase) {
+        // Grama superior
+        ctx.fillStyle = phase === 2 ? '#2d6a4f' : '#40c057';
+        ctx.fillRect(0, GROUND_Y, LOGICAL_WIDTH, 10);
+        ctx.fillStyle = phase === 2 ? '#1b4332' : '#2f9e44';
+        ctx.fillRect(0, GROUND_Y + 10, LOGICAL_WIDTH, 6);
+
+        // Terra marrom
+        ctx.fillStyle = phase === 2 ? '#3d2616' : '#8d5524';
+        ctx.fillRect(0, GROUND_Y + 16, LOGICAL_WIDTH, LOGICAL_HEIGHT - (GROUND_Y + 16));
+
+        // Pedrinhas e textura da terra rolando
+        const scrollOffset = Math.floor(distanceTraveled) % 64;
+        ctx.fillStyle = phase === 2 ? '#241409' : '#5c3317';
+        for (let x = -scrollOffset; x < LOGICAL_WIDTH; x += 64) {
+          ctx.fillRect(x + 10, GROUND_Y + 24, 12, 4);
+          ctx.fillRect(x + 38, GROUND_Y + 38, 16, 5);
+          ctx.fillRect(x + 22, GROUND_Y + 52, 10, 4);
+          ctx.fillStyle = phase === 2 ? '#5c3317' : '#c68642';
+          ctx.fillRect(x + 48, GROUND_Y + 26, 6, 4);
+          ctx.fillStyle = phase === 2 ? '#241409' : '#5c3317';
+        }
+      }
+
+      function renderChicken() {
+        let sprite = CHICKEN_SPRITES.idle;
+
+        if (gameState === STATE.GAMEOVER) {
+          sprite = CHICKEN_SPRITES.dead;
+        } else if (gameState === STATE.START) {
+          sprite = chicken.isBlinking ? CHICKEN_SPRITES.blink : CHICKEN_SPRITES.idle;
+        } else if (chicken.isJumping) {
+          sprite = CHICKEN_SPRITES.jump;
+        } else if (chicken.isDucking) {
+          sprite = chicken.animFrame % 2 === 0 ? CHICKEN_SPRITES.duck1 : CHICKEN_SPRITES.duck2;
+        } else {
+          const runFrames = [
+            CHICKEN_SPRITES.run1,
+            CHICKEN_SPRITES.run2,
+            CHICKEN_SPRITES.run3,
+            CHICKEN_SPRITES.run2
+          ];
+          sprite = runFrames[chicken.animFrame];
+        }
+
+        // Sombra no chão
+        const distFromGround = Math.max(0, (GROUND_Y - 48) - chicken.y);
+        const shadowW = Math.max(16, 36 - distFromGround * 0.14);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillRect(Math.round(chicken.x + 24 - shadowW / 2), GROUND_Y - 2, Math.round(shadowW), 4);
+
+        drawPixelMatrix(sprite, chicken.x, chicken.y, 3, false);
+      }
+
+      function renderObstacles() {
+        obstacles.forEach((obs) => {
+          switch (obs.type) {
+            case 'crate':
+              drawPixelMatrix(OBSTACLE_SPRITES.crate, obs.x, obs.y, 3);
+              break;
+            case 'crateDouble':
+              drawPixelMatrix(OBSTACLE_SPRITES.crate, obs.x, obs.y, 3);
+              drawPixelMatrix(OBSTACLE_SPRITES.crate, obs.x + 42, obs.y, 3);
+              break;
+            case 'rock':
+              drawPixelMatrix(OBSTACLE_SPRITES.rock, obs.x, obs.y, 3);
+              break;
+            case 'fence':
+              drawPixelMatrix(OBSTACLE_SPRITES.fence, obs.x, obs.y, 3);
+              break;
+            case 'branchLow':
+              drawPixelMatrix(OBSTACLE_SPRITES.branchLow, obs.x, obs.y, 3);
+              break;
+            case 'branchHigh':
+              drawPixelMatrix(OBSTACLE_SPRITES.branchHigh, obs.x, obs.y, 3);
+              break;
+            case 'rooster':
+              drawPixelMatrix(
+                obs.animFrame === 0 ? OBSTACLE_SPRITES.rooster1 : OBSTACLE_SPRITES.rooster2,
+                obs.x,
+                obs.y,
+                3
+              );
+              break;
+            case 'dog':
+              drawPixelMatrix(
+                obs.animFrame === 0 ? OBSTACLE_SPRITES.dog1 : OBSTACLE_SPRITES.dog2,
+                obs.x,
+                obs.y,
+                3
+              );
+              break;
+            case 'tractor':
+              drawPixelMatrix(
+                obs.variant === 'red' ? OBSTACLE_SPRITES.tractorRed : OBSTACLE_SPRITES.tractorGreen,
+                obs.x,
+                obs.y,
+                3
+              );
+              break;
+          }
+        });
+      }
+
+      function renderHUD(phase) {
+        const currentInt = Math.floor(score);
+        const displayHigh = Math.max(highScore, currentInt);
+        const speedMult = (gameSpeed / BASE_SPEED).toFixed(1);
+        const phaseNames = ['DIA', 'PÔR DO SOL', 'NOITE'];
+
+        ctx.save();
+        ctx.font = '12px "Press Start 2P", monospace';
+        ctx.textBaseline = 'top';
+
+        // Indicador de Fase e Velocidade à Esquerda
+        const leftText = `FASE: ${phaseNames[phase]}  VEL: ${speedMult}x`;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillText(leftText, 18, 18);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(leftText, 16, 16);
+
+        // Pontuação e Recorde à Direita
+        const hiStr = `HI ${String(displayHigh).padStart(5, '0')}`;
+        const scoreStr = String(currentInt).padStart(5, '0');
+        const rightText = `${hiStr}  ${scoreStr}`;
+        const textWidth = ctx.measureText(rightText).width;
+        const rx = LOGICAL_WIDTH - textWidth - 18;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillText(rightText, rx + 2, 18);
+        ctx.fillStyle = newRecordAchieved ? '#ffd43b' : '#ffffff';
+        ctx.fillText(rightText, rx, 16);
+
+        ctx.restore();
+      }
+
+      function render() {
+        disableSmoothing();
+        ctx.save();
+
+        // Screen shake sutil na colisão
+        if (shakeTimer > 0) {
+          const dx = (Math.random() - 0.5) * shakeIntensity * 2;
+          const dy = (Math.random() - 0.5) * shakeIntensity * 2;
+          ctx.translate(Math.round(dx), Math.round(dy));
+        }
+
+        const phase = getDayPhase();
+        renderSkyAndCelestial(phase);
+        renderParallaxBackground(phase);
+        renderGround(phase);
+        renderObstacles();
+        renderChicken();
+
+        // Partículas
+        particles.forEach((p) => {
+          ctx.fillStyle = p.color;
+          ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+        });
+
+        // Textos Flutuantes (+5, NOVO RECORDE!)
+        floatingTexts.forEach((ft) => {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
+          ctx.font = '11px "Press Start 2P", monospace';
+          ctx.fillStyle = '#000';
+          ctx.fillText(ft.text, Math.round(ft.x) + 2, Math.round(ft.y) + 2);
+          ctx.fillStyle = ft.color;
+          ctx.fillText(ft.text, Math.round(ft.x), Math.round(ft.y));
+          ctx.restore();
+        });
+
+        renderHUD(phase);
+        ctx.restore();
+      }
+
+      // --------------------------------------------------------------------------
+      // 11. GERENCIAMENTO DE INTERFACE E EVENTOS DE ENTRADA
+      // --------------------------------------------------------------------------
+      const startOverlay = document.getElementById('startOverlay');
+      const pauseOverlay = document.getElementById('pauseOverlay');
+      const gameOverOverlay = document.getElementById('gameOverOverlay');
+      const btnSound = document.getElementById('btnSound');
+      const soundIcon = document.getElementById('soundIcon');
+      const soundText = document.getElementById('soundText');
+      const btnPause = document.getElementById('btnPause');
+      const btnResume = document.getElementById('btnResume');
+      const btnRestart = document.getElementById('btnRestart');
+
+      function updateSoundButtonUI() {
+        soundIcon.textContent = audio.muted ? '🔇' : '🔊';
+        soundText.textContent = audio.muted ? 'SOM: OFF' : 'SOM: ON';
+      }
+      updateSoundButtonUI();
+
+      function updateOverlays() {
+        startOverlay.classList.toggle('hidden', gameState !== STATE.START);
+        startOverlay.classList.toggle('active', gameState === STATE.START);
+
+        pauseOverlay.classList.toggle('hidden', gameState !== STATE.PAUSED);
+        pauseOverlay.classList.toggle('active', gameState === STATE.PAUSED);
+
+        gameOverOverlay.classList.toggle('hidden', gameState !== STATE.GAMEOVER);
+        gameOverOverlay.classList.toggle('active', gameState === STATE.GAMEOVER);
+      }
+
+      // Controles de Teclado
+      window.addEventListener('keydown', (e) => {
+        if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) {
+          e.preventDefault();
+        }
+
+        if (e.code === 'Escape' || e.code === 'KeyP') {
+          if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
+            togglePause();
+          }
+          return;
+        }
+
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+          if (gameState === STATE.START || gameState === STATE.GAMEOVER) {
+            resetGame();
+          } else if (gameState === STATE.PLAYING && !e.repeat) {
+            startJump();
+          }
+        }
+
+        if (e.code === 'Enter') {
+          if (gameState === STATE.START || gameState === STATE.GAMEOVER) {
+            resetGame();
+          } else if (gameState === STATE.PAUSED) {
+            togglePause();
+          }
+        }
+
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+          setDucking(true);
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+          releaseJump();
+        }
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+          setDucking(false);
+        }
+      });
+
+      // Controles de Mouse / Toque no Canvas
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (gameState === STATE.START || gameState === STATE.GAMEOVER) {
+          resetGame();
+        } else if (gameState === STATE.PLAYING) {
+          startJump();
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        releaseJump();
+      });
+
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameState === STATE.START || gameState === STATE.GAMEOVER) {
+          resetGame();
+        } else if (gameState === STATE.PLAYING) {
+          startJump();
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', () => {
+        releaseJump();
+      });
+
+      // Botões da Interface
+      btnSound.addEventListener('click', () => {
+        audio.toggleMute();
+        updateSoundButtonUI();
+        if (!audio.muted) audio.playPassObstacle();
+      });
+
+      btnPause.addEventListener('click', () => {
+        togglePause();
+      });
+
+      btnResume.addEventListener('click', () => {
+        togglePause();
+      });
+
+      btnRestart.addEventListener('click', () => {
+        resetGame();
+      });
+
+      startOverlay.addEventListener('click', () => {
+        if (gameState === STATE.START) resetGame();
+      });
+
+      // --------------------------------------------------------------------------
+      // 12. LOOP PRINCIPAL A 60 FPS
+      // --------------------------------------------------------------------------
+      let lastTimestamp = 0;
+
+      function gameLoop(timestamp) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const dt = Math.min(0.05, (timestamp - lastTimestamp) / 1000);
+        lastTimestamp = timestamp;
+
+        update(dt);
+        render();
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Inicialização
+      initScenery();
+      updateOverlays();
+      requestAnimationFrame(gameLoop);
+    })();
+  </script>
+</body>
+</html>
